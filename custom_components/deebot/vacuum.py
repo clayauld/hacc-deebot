@@ -1,15 +1,23 @@
 """Support for Ecovacs Deebot Vacuums with Spot Area cleaning."""
 import logging
+from functools import partial
 
 from homeassistant.components.vacuum import (
+    ATTR_STATUS,
+    STATE_CLEANING,
+    STATE_DOCKED,
+    STATE_ERROR,
+    STATE_IDLE,
+    STATE_PAUSED,
+    STATE_RETURNING,
     SUPPORT_FAN_SPEED,
     VacuumDevice,
 )
 
 try:
-    from homeassistant.components.vacuum import VacuumEntity
+    from homeassistant.components.vacuum import StateVacuumEntity
 except ImportError:
-    from homeassistant.components.vacuum import VacuumDevice as VacuumEntity
+    from homeassistant.components.vacuum import StateVacuumDevice as StateVacuumEntity
 
 from homeassistant.helpers.icon import icon_for_battery_level
 
@@ -20,6 +28,16 @@ _LOGGER = logging.getLogger(__name__)
 ATTR_ERROR = "error"
 ATTR_COMPONENT_PREFIX = "component_"
 
+STATE_MAP = {
+    "cleaning": STATE_CLEANING,
+    "auto": STATE_CLEANING,
+    "spot_area": STATE_CLEANING,
+    "charging": STATE_DOCKED,
+    "idle": STATE_DOCKED,
+    "pause": STATE_PAUSED,
+    "returning": STATE_RETURNING,
+    "stop": STATE_IDLE,
+}
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
     """Set up the Ecovacs vacuums."""
@@ -30,7 +48,7 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     add_entities(vacuums, True)
 
 
-class EcovacsDeebotVacuum(VacuumEntity):
+class EcovacsDeebotVacuum(StateVacuumEntity):
     """Ecovacs Vacuums such as Deebot."""
 
     def __init__(self, device, config):
@@ -110,6 +128,13 @@ class EcovacsDeebotVacuum(VacuumEntity):
         return self._supported_features
 
     @property
+    def state(self):
+        try:
+            return STATE_MAP[self.device.vacuum_status]
+        except KeyError:
+            return STATE_ERROR
+
+    @property
     def status(self):
         """Return the status of the vacuum cleaner."""
         return self.device.vacuum_status
@@ -119,7 +144,7 @@ class EcovacsDeebotVacuum(VacuumEntity):
         from ozmo import Charge
 
         self.device.run(Charge())
-
+	
     @property
     def battery_icon(self):
         """Return the battery icon for the vacuum cleaner."""
@@ -150,8 +175,7 @@ class EcovacsDeebotVacuum(VacuumEntity):
         self._fan_speed = fan_speed
 
     async def async_set_fan_speed(self, fan_speed, **kwargs):
-        self.set_fan_speed(fan_speed)
-        await self.async_update_ha_state()
+        await self.hass.async_add_executor_job(partial(self.set_fan_speed, fan_speed))
 
     @property
     def fan_speed_list(self):
@@ -200,6 +224,10 @@ class EcovacsDeebotVacuum(VacuumEntity):
         elif self.device.vacuum_status != 'pause':
             self.pause()
 
+    async def async_start_pause(self, **kwargs):
+        """Start, pause or resume the cleaning task."""
+        await self.hass.async_add_executor_job(self.start_pause)
+
     def clean_spot(self, **kwargs):
         """Perform a spot clean-up."""
         from ozmo import Clean
@@ -224,9 +252,9 @@ class EcovacsDeebotVacuum(VacuumEntity):
             "area": "0,2"
           }
         }
-        
+
         or
-        
+
         {
           "entity_id": "vacuum.<ID>",
           "command": "spot_area",
@@ -234,9 +262,9 @@ class EcovacsDeebotVacuum(VacuumEntity):
             "map": "1580.0,-4087.0,3833.0,-7525.0"
           }
         }
-		
+
 		or
-        
+
         Send command to edge clean.
 
         {
@@ -297,5 +325,6 @@ class EcovacsDeebotVacuum(VacuumEntity):
             data[attr_name] = int(val * 100)
 
         data["clean_mode"] = self.clean_mode
+        data[ATTR_STATUS] = self.state
 
         return data
