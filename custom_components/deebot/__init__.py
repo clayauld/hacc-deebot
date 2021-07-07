@@ -101,11 +101,12 @@ def setup(hass, config):
     _LOGGER.debug("Ecobot devices: %s", devices)
 
     for device in devices:
-        _LOGGER.info(
-            "Discovered Ecovacs device on account: %s with nickname %s",
-            device["did"],
-            device["nick"]
-        )
+       # This is broken!!
+       # _LOGGER.info(
+       #     "Discovered Ecovacs device on account: %s with nickname %s",
+       #     device["did"],
+       #     device["nick"],
+       # )
         vacbot = VacBot(
             ecovacs_api.uid,
             ecovacs_api.REALM,
