@@ -102,7 +102,7 @@ def setup(hass, config):
         _LOGGER.info(
             "Discovered Ecovacs device on account: %s with nickname %s",
             device["did"],
-            device["nick"],
+            device["nick"]
         )
         vacbot = VacBot(
             ecovacs_api.uid,
